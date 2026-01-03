@@ -1,0 +1,42 @@
+Vigil_Native/
+├── vigil.py
+├── start_vigil.bat
+├── requirements.txt
+├── .gitignore
+├── README.md
+├── LICENSE
+├── CHANGELOG.md
+├── CONTRIBUTING.md
+├── CODE_OF_CONDUCT.md
+├── SECURITY.md
+├── config/
+│   ├── __init__.py
+│   ├── settings.py
+│   └── .env.example
+├── core/
+│   ├── __init__.py
+│   ├── listener.py
+│   ├── voice_input.py
+│   ├── voice_output.py
+│   ├── brain.py
+│   └── memory.py
+├── knowledge/
+│   ├── __init__.py
+│   ├── codex.py
+│   ├── shrines.py
+│   ├── roles.py
+│   └── knowledge_base.py
+├── reflection/
+│   ├── __init__.py
+│   └── daily_reflection.py
+└── .github/
+    ├── CODEOWNERS
+    ├── FUNDING.yml
+    ├── dependabot.yml
+    ├── PULL_REQUEST_TEMPLATE.md
+    ├── ISSUE_TEMPLATE/
+    │   ├── bug_report.md
+    │   ├── feature_request.md
+    │   └── question.md
+    └── workflows/
+        └── python-app.yml
