@@ -7,6 +7,7 @@ import json
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -243,26 +244,44 @@ class Brain:
         return self.think_with_gemini(prompt, temperature)
 
     def trinity_mode(self, prompt: str) -> Optional[LLMResponse]:
+        """
+        Invoke all three LLMs in parallel for a comprehensive response.
+        """
         print(f"[{BOT_NAME}] 🔮 Invoking Trinity Mode...")
 
         responses = {}
         original_history = self.conversation_history.copy()
 
-        self.conversation_history = original_history.copy()
-        gpt_response = self.think_with_openai(prompt)
-        if gpt_response:
-            responses["GPT-4o"] = gpt_response.text
+        # Define tasks for parallel execution
+        def call_gpt():
             self.conversation_history = original_history.copy()
+            return ('GPT-4o', self.think_with_openai(prompt))
 
-        claude_response = self.think_with_claude(prompt)
-        if claude_response:
-            responses["Claude"] = claude_response.text
+        def call_claude():
             self.conversation_history = original_history.copy()
+            return ('Claude', self.think_with_claude(prompt))
 
-        gemini_response = self.think_with_gemini(prompt)
-        if gemini_response:
-            responses["Gemini"] = gemini_response.text
+        def call_gemini():
             self.conversation_history = original_history.copy()
+            return ('Gemini', self.think_with_gemini(prompt))
+
+        # Execute LLM calls in parallel
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            if self.openai_client:
+                futures.append(executor.submit(call_gpt))
+            if self.anthropic_client:
+                futures.append(executor.submit(call_claude))
+            if self.poe_available:
+                futures.append(executor.submit(call_gemini))
+
+            for future in as_completed(futures):
+                try:
+                    name, response = future.result()
+                    if response:
+                        responses[name] = response.text
+                except Exception as e:
+                    print(f"[{BOT_NAME}] Trinity mode error for a model: {e}")
 
         if not responses:
             return None

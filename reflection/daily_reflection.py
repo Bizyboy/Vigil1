@@ -227,7 +227,9 @@ This is a private log—speak freely.
                 self.generate_reflection()
                 last_reflection_date = today
 
-            time.sleep(0.5)
+            # Sleep for 10 seconds instead of 0.5 to reduce CPU usage
+            # Still checks frequently enough for midnight reflection
+            time.sleep(10)
 
     def start_scheduler(self):
         if self._scheduler_thread and self._scheduler_thread.is_alive():

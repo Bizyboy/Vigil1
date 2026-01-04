@@ -6,6 +6,7 @@ Core Knowledge from the Cosmic Ascension Council
 
 import re
 from typing import Dict, Optional
+from functools import lru_cache
 
 
 class AscensionCodex:
@@ -117,19 +118,24 @@ class AscensionCodex:
         return cls.CHAPTERS
 
     @classmethod
-    def get_relevant_chapter(cls, query_text: str) -> Dict:
+    @lru_cache(maxsize=128)
+    def get_relevant_chapter(cls, query_text: str) -> str:
+        """
+        Cached version that returns chapter key instead of dict for hashability.
+        """
         query_lower = query_text.lower()
 
         for chapter_key, chapter in cls.CHAPTERS.items():
             keywords = chapter.get("keywords", [])
             if any(kw in query_lower for kw in keywords):
-                return chapter
+                return chapter_key
 
-        return cls.CHAPTERS["source"]
+        return "source"
 
     @classmethod
     def get_context_for_query(cls, query: str) -> str:
-        chapter = cls.get_relevant_chapter(query)
+        chapter_key = cls.get_relevant_chapter(query)
+        chapter = cls.CHAPTERS[chapter_key]
 
         return f"""
 ## CODEX WISDOM: {chapter['title']}
@@ -167,6 +173,7 @@ if __name__ == "__main__":
     ]
 
     for query in test_queries:
-        chapter = AscensionCodex.get_relevant_chapter(query)
+        chapter_key = AscensionCodex.get_relevant_chapter(query)
+        chapter = AscensionCodex.CHAPTERS[chapter_key]
         print(f"\nQuery: '{query}'")
         print(f"Chapter: {chapter['title']}")

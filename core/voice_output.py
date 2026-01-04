@@ -71,15 +71,17 @@ class VoiceOutput:
             else:
                 audio_bytes = audio
 
+            # Use context manager to ensure cleanup
             with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp_file:
                 tmp_file.write(audio_bytes)
                 tmp_path = tmp_file.name
 
-            self._play_audio_file(tmp_path)
-
-            Path(tmp_path).unlink(missing_ok=True)
-
-            return True
+            try:
+                self._play_audio_file(tmp_path)
+                return True
+            finally:
+                # Ensure file is always deleted
+                Path(tmp_path).unlink(missing_ok=True)
 
         except Exception as e:
             print(f"[{BOT_NAME}] ElevenLabs speak error: {e}")
