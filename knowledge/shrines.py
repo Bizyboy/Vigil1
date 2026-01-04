@@ -130,9 +130,10 @@ class ShrineVirtues:
 
     @classmethod
     @lru_cache(maxsize=128)
-    def get_relevant_shrine(cls, query_text: str) -> str:
+    def _get_relevant_shrine_key(cls, query_text: str) -> str:
         """
-        Cached version that returns shrine key instead of dict for hashability.
+        Cached version that returns shrine key for hashability.
+        Internal use only.
         """
         query_lower = query_text.lower()
         words = set(re.findall(r'\b\w+\b', query_lower))
@@ -143,10 +144,26 @@ class ShrineVirtues:
                 return shrine_key
 
         return "truth"
+    
+    @classmethod
+    def get_relevant_shrine(cls, query_text: str) -> Dict:
+        """
+        Get the relevant shrine for a query.
+        Returns the full shrine dictionary for backward compatibility.
+        """
+        shrine_key = cls._get_relevant_shrine_key(query_text)
+        return cls.SHRINES[shrine_key]
+
+    @classmethod
+    def get_protocol_summary(cls) -> str:
+        return "\n".join(
+            f"• {s['name']}: {s['protocol']}"
+            for s in cls.SHRINES.values()
+        )
 
     @classmethod
     def get_context_for_query(cls, query: str) -> str:
-        shrine_key = cls.get_relevant_shrine(query)
+        shrine_key = cls._get_relevant_shrine_key(query)
         shrine = cls.SHRINES[shrine_key]
 
         return f"""
@@ -162,13 +179,6 @@ class ShrineVirtues:
 
 Apply this virtue if relevant to the interaction.
 """
-
-    @classmethod
-    def get_protocol_summary(cls) -> str:
-        return "\n".join(
-            f"• {s['name']}: {s['protocol']}"
-            for s in cls.SHRINES.values()
-        )
 
     @classmethod
     def get_full_summary(cls) -> str:
@@ -194,8 +204,7 @@ if __name__ == "__main__":
     ]
 
     for query in test_queries:
-        shrine_key = ShrineVirtues.get_relevant_shrine(query)
-        shrine = ShrineVirtues.SHRINES[shrine_key]
+        shrine = ShrineVirtues.get_relevant_shrine(query)
         print(f"\nQuery: '{query}'")
         print(f"Shrine: {shrine['name']}")
         print(f"Protocol: {shrine['protocol']}")

@@ -73,7 +73,7 @@ class Brain:
         self._response_cache: Dict[str, str] = {}
         self._max_cache_size = 50
 
-    def _cache_key(self, prompt: str) -> str:
+    def _cache_key(self, prompt: str) -> Optional[str]:
         """Generate a cache key for a prompt."""
         # Only cache if conversation history is short to avoid stale responses
         if len(self.conversation_history) > 10:
@@ -91,10 +91,11 @@ class Brain:
         """Cache a response for future use."""
         cache_key = self._cache_key(prompt)
         if cache_key:
-            # Limit cache size
+            # Limit cache size (Python 3.7+ guarantees dict insertion order)
             if len(self._response_cache) >= self._max_cache_size:
-                # Remove oldest entry (simple FIFO)
-                self._response_cache.pop(next(iter(self._response_cache)))
+                # Remove oldest entry (first inserted)
+                first_key = next(iter(self._response_cache))
+                self._response_cache.pop(first_key)
             self._response_cache[cache_key] = response
 
     def add_to_history(self, role: str, content: str):

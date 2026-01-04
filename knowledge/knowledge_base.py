@@ -145,13 +145,19 @@ class KnowledgeBase:
         if entry_id in self.entries:
             entry = self.entries[entry_id]
             
-            # Remove from indexes
+            # Remove from indexes (with safety checks)
             if entry.category in self._category_index:
-                self._category_index[entry.category].remove(entry_id)
+                try:
+                    self._category_index[entry.category].remove(entry_id)
+                except ValueError:
+                    pass  # Entry not in index, continue anyway
             
             for tag in entry.tags:
                 if tag in self._tag_index:
-                    self._tag_index[tag].remove(entry_id)
+                    try:
+                        self._tag_index[tag].remove(entry_id)
+                    except ValueError:
+                        pass  # Entry not in index, continue anyway
             
             del self.entries[entry_id]
             self._save_entries()

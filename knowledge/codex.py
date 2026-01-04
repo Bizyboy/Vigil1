@@ -119,9 +119,10 @@ class AscensionCodex:
 
     @classmethod
     @lru_cache(maxsize=128)
-    def get_relevant_chapter(cls, query_text: str) -> str:
+    def _get_relevant_chapter_key(cls, query_text: str) -> str:
         """
-        Cached version that returns chapter key instead of dict for hashability.
+        Cached version that returns chapter key for hashability.
+        Internal use only.
         """
         query_lower = query_text.lower()
 
@@ -131,10 +132,19 @@ class AscensionCodex:
                 return chapter_key
 
         return "source"
+    
+    @classmethod
+    def get_relevant_chapter(cls, query_text: str) -> Dict:
+        """
+        Get the relevant chapter for a query.
+        Returns the full chapter dictionary for backward compatibility.
+        """
+        chapter_key = cls._get_relevant_chapter_key(query_text)
+        return cls.CHAPTERS[chapter_key]
 
     @classmethod
     def get_context_for_query(cls, query: str) -> str:
-        chapter_key = cls.get_relevant_chapter(query)
+        chapter_key = cls._get_relevant_chapter_key(query)
         chapter = cls.CHAPTERS[chapter_key]
 
         return f"""
@@ -173,7 +183,6 @@ if __name__ == "__main__":
     ]
 
     for query in test_queries:
-        chapter_key = AscensionCodex.get_relevant_chapter(query)
-        chapter = AscensionCodex.CHAPTERS[chapter_key]
+        chapter = AscensionCodex.get_relevant_chapter(query)
         print(f"\nQuery: '{query}'")
         print(f"Chapter: {chapter['title']}")
