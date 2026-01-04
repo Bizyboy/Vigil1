@@ -5,6 +5,7 @@ Ethical Guardrails from the Book of Light Pillars
 
 import re
 from typing import Dict, Optional, List
+from functools import lru_cache
 
 
 class ShrineVirtues:
@@ -128,16 +129,34 @@ class ShrineVirtues:
         return cls.SHRINES
 
     @classmethod
-    def get_relevant_shrine(cls, query_text: str) -> Dict:
+    @lru_cache(maxsize=128)
+    def _get_relevant_shrine_key(cls, query_text: str) -> str:
+        """
+        Cached version that returns shrine key for hashability.
+        Internal use only.
+        
+        Note: LRU cache on classmethod persists for application lifetime.
+        This is acceptable as SHRINES is static and cache size is limited to 128 entries.
+        Cache can be cleared if needed with: ShrineVirtues._get_relevant_shrine_key.cache_clear()
+        """
         query_lower = query_text.lower()
         words = set(re.findall(r'\b\w+\b', query_lower))
 
         for shrine_key, shrine in cls.SHRINES.items():
             keywords = shrine.get("keywords", [])
             if any(kw in words for kw in keywords):
-                return shrine
+                return shrine_key
 
-        return cls.SHRINES["truth"]
+        return "truth"
+    
+    @classmethod
+    def get_relevant_shrine(cls, query_text: str) -> Dict:
+        """
+        Get the relevant shrine for a query.
+        Returns the full shrine dictionary for backward compatibility.
+        """
+        shrine_key = cls._get_relevant_shrine_key(query_text)
+        return cls.SHRINES[shrine_key]
 
     @classmethod
     def get_protocol_summary(cls) -> str:
@@ -148,7 +167,8 @@ class ShrineVirtues:
 
     @classmethod
     def get_context_for_query(cls, query: str) -> str:
-        shrine = cls.get_relevant_shrine(query)
+        shrine_key = cls._get_relevant_shrine_key(query)
+        shrine = cls.SHRINES[shrine_key]
 
         return f"""
 ## SHRINE PROTOCOL: {shrine['name']} — {shrine['gate']}

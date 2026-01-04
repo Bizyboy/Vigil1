@@ -35,6 +35,10 @@ class KnowledgeBase:
 
         self.entries_file = self.kb_dir / "entries.json"
         self.entries: Dict[str, KnowledgeEntry] = {}
+        
+        # Create indexes for faster searching
+        self._category_index: Dict[str, List[str]] = {}
+        self._tag_index: Dict[str, List[str]] = {}
 
         self._load_entries()
         print(f"[{BOT_NAME}] Knowledge base initialized with {len(self.entries)} entries.")
@@ -46,8 +50,27 @@ class KnowledgeBase:
                     data = json.load(f)
                 for entry_id, entry_data in data.items():
                     self.entries[entry_id] = KnowledgeEntry(**entry_data)
+                # Rebuild indexes after loading
+                self._rebuild_indexes()
             except Exception as e:
                 print(f"[{BOT_NAME}] Error loading knowledge base: {e}")
+
+    def _rebuild_indexes(self):
+        """Rebuild category and tag indexes for faster searching."""
+        self._category_index.clear()
+        self._tag_index.clear()
+        
+        for entry_id, entry in self.entries.items():
+            # Index by category
+            if entry.category not in self._category_index:
+                self._category_index[entry.category] = []
+            self._category_index[entry.category].append(entry_id)
+            
+            # Index by tags
+            for tag in entry.tags:
+                if tag not in self._tag_index:
+                    self._tag_index[tag] = []
+                self._tag_index[tag].append(entry_id)
 
     def _save_entries(self):
         try:
@@ -89,6 +112,17 @@ class KnowledgeBase:
         )
 
         self.entries[entry_id] = entry
+        
+        # Update indexes
+        if category not in self._category_index:
+            self._category_index[category] = []
+        self._category_index[category].append(entry_id)
+        
+        for tag in entry.tags:
+            if tag not in self._tag_index:
+                self._tag_index[tag] = []
+            self._tag_index[tag].append(entry_id)
+        
         self._save_entries()
 
         print(f"[{BOT_NAME}] Added knowledge: '{title}' [{category}]")
@@ -109,6 +143,24 @@ class KnowledgeBase:
 
     def delete_entry(self, entry_id: str) -> bool:
         if entry_id in self.entries:
+            entry = self.entries[entry_id]
+            
+            # Remove from indexes (with safety checks)
+            if entry.category in self._category_index:
+                try:
+                    self._category_index[entry.category].remove(entry_id)
+                except ValueError:
+                    # Log inconsistency but continue
+                    print(f"[{BOT_NAME}] Warning: Entry {entry_id} not found in category index for '{entry.category}'")
+            
+            for tag in entry.tags:
+                if tag in self._tag_index:
+                    try:
+                        self._tag_index[tag].remove(entry_id)
+                    except ValueError:
+                        # Log inconsistency but continue
+                        print(f"[{BOT_NAME}] Warning: Entry {entry_id} not found in tag index for '{tag}'")
+            
             del self.entries[entry_id]
             self._save_entries()
             return True
@@ -124,39 +176,62 @@ class KnowledgeBase:
         tags: List[str] = None,
         min_importance: int = 0,
     ) -> List[KnowledgeEntry]:
+        """
+        Optimized search using indexes when possible.
+        """
+        # Start with all entries or use indexes to filter
+        candidate_ids = set(self.entries.keys())
+        
+        # Filter by category using index
+        if category:
+            if category in self._category_index:
+                candidate_ids &= set(self._category_index[category])
+            else:
+                return []  # Category doesn't exist
+        
+        # Filter by tags using index
+        if tags:
+            tag_ids = set()
+            for tag in tags:
+                if tag in self._tag_index:
+                    tag_ids.update(self._tag_index[tag])
+            candidate_ids &= tag_ids
+            if not candidate_ids:
+                return []  # No matches for tags
+        
+        # Now filter remaining candidates by query and importance
         results = []
         query_lower = query.lower() if query else ""
-
-        for entry in self.entries.values():
+        
+        for entry_id in candidate_ids:
+            entry = self.entries[entry_id]
+            
             if entry.importance < min_importance:
                 continue
-
-            if category and entry.category != category:
-                continue
-
-            if tags and not any(tag in entry.tags for tag in tags):
-                continue
-
+            
             if query_lower:
                 if query_lower not in entry.title.lower() and query_lower not in entry.content.lower():
                     continue
-
+            
             results.append(entry)
-
+        
+        # Sort by importance
         results.sort(key=lambda e: e.importance, reverse=True)
         return results
 
     def get_by_category(self, category: str) -> List[KnowledgeEntry]:
-        return [e for e in self.entries.values() if e.category == category]
+        """Use index for faster category lookup."""
+        if category not in self._category_index:
+            return []
+        return [self.entries[entry_id] for entry_id in self._category_index[category]]
 
     def get_categories(self) -> List[str]:
-        return list(set(e.category for e in self.entries.values()))
+        """Use index for instant category list."""
+        return list(self._category_index.keys())
 
     def get_tags(self) -> List[str]:
-        all_tags = set()
-        for entry in self.entries.values():
-            all_tags.update(entry.tags)
-        return list(all_tags)
+        """Use index for instant tag list."""
+        return list(self._tag_index.keys())
 
     def get_context_for_query(self, query: str, max_entries: int = 3) -> str:
         results = self.search(query=query, min_importance=3)[:max_entries]

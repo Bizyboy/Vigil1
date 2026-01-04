@@ -50,20 +50,22 @@ class VoiceInput:
         try:
             wav_bytes = self._audio_to_wav_bytes(audio)
 
+            # Use context manager to ensure cleanup
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp_file:
                 tmp_file.write(wav_bytes)
                 tmp_path = tmp_file.name
 
-            with open(tmp_path, "rb") as audio_file:
-                response = self.openai_client.audio.transcriptions.create(
-                    model=VoiceConfig.WHISPER_MODEL,
-                    file=audio_file,
-                    response_format="text"
-                )
-
-            Path(tmp_path).unlink(missing_ok=True)
-
-            return response.strip() if response else None
+            try:
+                with open(tmp_path, "rb") as audio_file:
+                    response = self.openai_client.audio.transcriptions.create(
+                        model=VoiceConfig.WHISPER_MODEL,
+                        file=audio_file,
+                        response_format="text"
+                    )
+                return response.strip() if response else None
+            finally:
+                # Ensure file is always deleted
+                Path(tmp_path).unlink(missing_ok=True)
 
         except Exception as e:
             print(f"[{BOT_NAME}] Whisper transcription error: {e}")

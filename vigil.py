@@ -266,6 +266,9 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
         # Stop components
         self.listener.stop()
         self.reflection_system.stop_scheduler()
+        
+        # Flush any pending memory saves
+        self.memory.flush_saves()
 
         # Farewell
         farewell = f"Until next time, {PRIMARY_USER_NAME}. Stay vigilant."

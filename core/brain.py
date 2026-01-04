@@ -7,6 +7,8 @@ import json
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -19,6 +21,11 @@ from config.settings import (
     BOT_NAME,
     get_system_prompt,
 )
+
+
+# Cache configuration
+CACHE_HISTORY_THRESHOLD = 10  # Only cache responses when history is short
+MAX_RESPONSE_CACHE_SIZE = 50  # Maximum number of cached responses
 
 
 class Provider(Enum):
@@ -65,6 +72,36 @@ class Brain:
 
         self.system_prompt = get_system_prompt()
         self.conversation_history: List[Message] = []
+        
+        # Simple cache for recent responses (prompt -> response text)
+        # Using built-in hash() for simplicity and speed
+        self._response_cache: Dict[int, str] = {}
+        self._max_cache_size = MAX_RESPONSE_CACHE_SIZE
+
+    def _cache_key(self, prompt: str) -> Optional[int]:
+        """Generate a cache key for a prompt using built-in hash."""
+        # Only cache if conversation history is short to avoid stale responses
+        if len(self.conversation_history) > CACHE_HISTORY_THRESHOLD:
+            return None
+        return hash(prompt)
+    
+    def _get_cached_response(self, prompt: str) -> Optional[str]:
+        """Check if we have a cached response for this prompt."""
+        cache_key = self._cache_key(prompt)
+        if cache_key:
+            return self._response_cache.get(cache_key)
+        return None
+    
+    def _cache_response(self, prompt: str, response: str):
+        """Cache a response for future use."""
+        cache_key = self._cache_key(prompt)
+        if cache_key:
+            # Limit cache size (Python 3.7+ guarantees dict insertion order)
+            if len(self._response_cache) >= self._max_cache_size:
+                # Remove oldest entry (first inserted)
+                first_key = next(iter(self._response_cache))
+                self._response_cache.pop(first_key)
+            self._response_cache[cache_key] = response
 
     def add_to_history(self, role: str, content: str):
         self.conversation_history.append(Message(role=role, content=content))
@@ -98,6 +135,20 @@ class Brain:
             print(f"[{BOT_NAME}] OpenAI not available.")
             return None
 
+        # Check cache first
+        cached = self._get_cached_response(prompt)
+        if cached:
+            print(f"[{BOT_NAME}] Using cached response for similar prompt")
+            self.add_to_history("user", prompt)
+            self.add_to_history("assistant", cached)
+            return LLMResponse(
+                text=cached,
+                provider=Provider.OPENAI,
+                model=LLMConfig.PRIMARY_MODEL,
+                tokens_used=0,  # Cached response
+                metadata={"cached": True}
+            )
+
         temperature = temperature or LLMConfig.DEFAULT_TEMPERATURE
 
         try:
@@ -114,6 +165,9 @@ class Brain:
             tokens_used = response.usage.total_tokens if response.usage else 0
 
             self.add_to_history("assistant", assistant_message)
+            
+            # Cache the response
+            self._cache_response(prompt, assistant_message)
 
             return LLMResponse(
                 text=assistant_message,
@@ -243,26 +297,44 @@ class Brain:
         return self.think_with_gemini(prompt, temperature)
 
     def trinity_mode(self, prompt: str) -> Optional[LLMResponse]:
+        """
+        Invoke all three LLMs in parallel for a comprehensive response.
+        """
         print(f"[{BOT_NAME}] 🔮 Invoking Trinity Mode...")
 
         responses = {}
         original_history = self.conversation_history.copy()
 
-        self.conversation_history = original_history.copy()
-        gpt_response = self.think_with_openai(prompt)
-        if gpt_response:
-            responses["GPT-4o"] = gpt_response.text
+        # Define tasks for parallel execution
+        def call_gpt():
             self.conversation_history = original_history.copy()
+            return ('GPT-4o', self.think_with_openai(prompt))
 
-        claude_response = self.think_with_claude(prompt)
-        if claude_response:
-            responses["Claude"] = claude_response.text
+        def call_claude():
             self.conversation_history = original_history.copy()
+            return ('Claude', self.think_with_claude(prompt))
 
-        gemini_response = self.think_with_gemini(prompt)
-        if gemini_response:
-            responses["Gemini"] = gemini_response.text
+        def call_gemini():
             self.conversation_history = original_history.copy()
+            return ('Gemini', self.think_with_gemini(prompt))
+
+        # Execute LLM calls in parallel
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = []
+            if self.openai_client:
+                futures.append(executor.submit(call_gpt))
+            if self.anthropic_client:
+                futures.append(executor.submit(call_claude))
+            if self.poe_available:
+                futures.append(executor.submit(call_gemini))
+
+            for future in as_completed(futures):
+                try:
+                    name, response = future.result()
+                    if response:
+                        responses[name] = response.text
+                except Exception as e:
+                    print(f"[{BOT_NAME}] Trinity mode error for a model: {e}")
 
         if not responses:
             return None

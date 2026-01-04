@@ -6,6 +6,7 @@ Core Knowledge from the Cosmic Ascension Council
 
 import re
 from typing import Dict, Optional
+from functools import lru_cache
 
 
 class AscensionCodex:
@@ -117,19 +118,38 @@ class AscensionCodex:
         return cls.CHAPTERS
 
     @classmethod
-    def get_relevant_chapter(cls, query_text: str) -> Dict:
+    @lru_cache(maxsize=128)
+    def _get_relevant_chapter_key(cls, query_text: str) -> str:
+        """
+        Cached version that returns chapter key for hashability.
+        Internal use only.
+        
+        Note: LRU cache on classmethod persists for application lifetime.
+        This is acceptable as CHAPTERS is static and cache size is limited to 128 entries.
+        Cache can be cleared if needed with: AscensionCodex._get_relevant_chapter_key.cache_clear()
+        """
         query_lower = query_text.lower()
 
         for chapter_key, chapter in cls.CHAPTERS.items():
             keywords = chapter.get("keywords", [])
             if any(kw in query_lower for kw in keywords):
-                return chapter
+                return chapter_key
 
-        return cls.CHAPTERS["source"]
+        return "source"
+    
+    @classmethod
+    def get_relevant_chapter(cls, query_text: str) -> Dict:
+        """
+        Get the relevant chapter for a query.
+        Returns the full chapter dictionary for backward compatibility.
+        """
+        chapter_key = cls._get_relevant_chapter_key(query_text)
+        return cls.CHAPTERS[chapter_key]
 
     @classmethod
     def get_context_for_query(cls, query: str) -> str:
-        chapter = cls.get_relevant_chapter(query)
+        chapter_key = cls._get_relevant_chapter_key(query)
+        chapter = cls.CHAPTERS[chapter_key]
 
         return f"""
 ## CODEX WISDOM: {chapter['title']}

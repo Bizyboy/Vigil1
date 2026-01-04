@@ -4,6 +4,7 @@ Conversation memory, user learning, and knowledge storage
 """
 
 import json
+import threading
 from datetime import datetime, date
 from pathlib import Path
 from typing import Optional, List, Dict, Any
@@ -58,6 +59,12 @@ class Memory:
 
         self.user_profile = self._load_user_profile()
         self.today_log = self._load_or_create_daily_log()
+        
+        # Debouncing mechanism for saves
+        self._save_timer: Optional[threading.Timer] = None
+        self._save_lock = threading.Lock()
+        self._pending_profile_save = False
+        self._pending_log_save = False
 
         print(f"[{BOT_NAME}] Memory system initialized.")
 
@@ -72,11 +79,65 @@ class Memory:
         return UserProfile()
 
     def _save_user_profile(self):
-        try:
-            with open(self.user_profile_path, 'w') as f:
-                json.dump(asdict(self.user_profile), f, indent=2)
-        except Exception as e:
-            print(f"[{BOT_NAME}] Error saving user profile: {e}")
+        """Mark profile for saving with debouncing."""
+        with self._save_lock:
+            self._pending_profile_save = True
+            self._schedule_save()
+
+    def _save_daily_log(self):
+        """Mark daily log for saving with debouncing."""
+        with self._save_lock:
+            self._pending_log_save = True
+            self._schedule_save()
+    
+    def _schedule_save(self):
+        """Schedule a debounced save operation."""
+        if self._save_timer is not None:
+            self._save_timer.cancel()
+        
+        # Save after 2 seconds of inactivity
+        # Note: Using daemon thread is acceptable here as flush_saves() is always
+        # called during shutdown in vigil.py to ensure data is persisted
+        self._save_timer = threading.Timer(2.0, self._execute_pending_saves)
+        self._save_timer.daemon = True
+        self._save_timer.start()
+    
+    def _execute_pending_saves(self):
+        """Execute all pending save operations."""
+        with self._save_lock:
+            if self._pending_profile_save:
+                try:
+                    with open(self.user_profile_path, 'w') as f:
+                        json.dump(asdict(self.user_profile), f, indent=2)
+                    self._pending_profile_save = False
+                except Exception as e:
+                    print(f"[{BOT_NAME}] Error saving user profile: {e}")
+            
+            if self._pending_log_save:
+                try:
+                    log_path = self._get_today_log_path()
+                    data = {
+                        'date': self.today_log.date,
+                        'interactions': [asdict(i) for i in self.today_log.interactions],
+                        'lessons_learned': self.today_log.lessons_learned,
+                        'challenges': self.today_log.challenges,
+                        'performance_notes': self.today_log.performance_notes,
+                        'external_entities': self.today_log.external_entities,
+                    }
+                    with open(log_path, 'w') as f:
+                        json.dump(data, f, indent=2)
+                    self._pending_log_save = False
+                except Exception as e:
+                    print(f"[{BOT_NAME}] Error saving daily log: {e}")
+            
+            self._save_timer = None
+    
+    def flush_saves(self):
+        """Immediately execute any pending saves."""
+        if self._save_timer is not None:
+            self._save_timer.cancel()
+            self._save_timer = None
+        self._execute_pending_saves()
 
     def _get_today_log_path(self) -> Path:
         today = date.today().isoformat()
@@ -102,22 +163,6 @@ class Memory:
                 print(f"[{BOT_NAME}] Error loading daily log: {e}")
 
         return DailyLog(date=date.today().isoformat())
-
-    def _save_daily_log(self):
-        log_path = self._get_today_log_path()
-        try:
-            data = {
-                'date': self.today_log.date,
-                'interactions': [asdict(i) for i in self.today_log.interactions],
-                'lessons_learned': self.today_log.lessons_learned,
-                'challenges': self.today_log.challenges,
-                'performance_notes': self.today_log.performance_notes,
-                'external_entities': self.today_log.external_entities,
-            }
-            with open(log_path, 'w') as f:
-                json.dump(data, f, indent=2)
-        except Exception as e:
-            print(f"[{BOT_NAME}] Error saving daily log: {e}")
 
     def record_interaction(
         self,

@@ -26,6 +26,10 @@ class WakeWordListener:
         self.is_listening = False
         self._stop_event = threading.Event()
         self._listen_thread: Optional[threading.Thread] = None
+        
+        # Pre-compute wake words for faster matching
+        self._wake_words_lower = [w.lower() for w in WAKE_WORDS]
+        self._wake_words_sorted = sorted(WAKE_WORDS, key=len, reverse=True)
 
         self._calibrate_microphone()
 
@@ -43,20 +47,22 @@ class WakeWordListener:
 
     def _contains_wake_word(self, text: str) -> bool:
         normalized = self._normalize_text(text)
-        for wake_word in WAKE_WORDS:
-            if wake_word.lower() in normalized:
+        # Use pre-computed lowercase wake words for faster matching
+        for wake_word in self._wake_words_lower:
+            if wake_word in normalized:
                 return True
         return False
 
     def _extract_command(self, text: str) -> str:
         normalized = self._normalize_text(text)
-        for wake_word in sorted(WAKE_WORDS, key=len, reverse=True):
+        # Use pre-sorted wake words for faster matching
+        for wake_word in self._wake_words_sorted:
             wake_lower = wake_word.lower()
             if wake_lower in normalized:
                 idx = normalized.find(wake_lower)
                 command = text[idx + len(wake_word):].strip()
-                for word in [",", ".", "?", "!"]:
-                    command = command.strip(word)
+                # Strip punctuation more efficiently
+                command = command.strip(",.?!")
                 return command.strip()
         return text
 
