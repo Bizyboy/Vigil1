@@ -96,7 +96,8 @@ class Memory:
             self._save_timer.cancel()
         
         # Save after 2 seconds of inactivity
-        # Note: Using daemon thread is acceptable here as flush_saves() is called during shutdown
+        # Note: Using daemon thread is acceptable here as flush_saves() is always
+        # called during shutdown in vigil.py to ensure data is persisted
         self._save_timer = threading.Timer(2.0, self._execute_pending_saves)
         self._save_timer.daemon = True
         self._save_timer.start()

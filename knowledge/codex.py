@@ -123,6 +123,10 @@ class AscensionCodex:
         """
         Cached version that returns chapter key for hashability.
         Internal use only.
+        
+        Note: LRU cache on classmethod persists for application lifetime.
+        This is acceptable as CHAPTERS is static and cache size is limited to 128 entries.
+        Cache can be cleared if needed with: AscensionCodex._get_relevant_chapter_key.cache_clear()
         """
         query_lower = query_text.lower()
 

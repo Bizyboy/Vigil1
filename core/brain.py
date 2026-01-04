@@ -4,7 +4,6 @@ Multi-model AI backend with OpenAI, Claude, and Gemini
 """
 
 import json
-import hashlib
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
@@ -22,6 +21,11 @@ from config.settings import (
     BOT_NAME,
     get_system_prompt,
 )
+
+
+# Cache configuration
+CACHE_HISTORY_THRESHOLD = 10  # Only cache responses when history is short
+MAX_RESPONSE_CACHE_SIZE = 50  # Maximum number of cached responses
 
 
 class Provider(Enum):
@@ -69,16 +73,17 @@ class Brain:
         self.system_prompt = get_system_prompt()
         self.conversation_history: List[Message] = []
         
-        # Simple cache for recent responses (prompt hash -> response text)
-        self._response_cache: Dict[str, str] = {}
-        self._max_cache_size = 50
+        # Simple cache for recent responses (prompt -> response text)
+        # Using built-in hash() for simplicity and speed
+        self._response_cache: Dict[int, str] = {}
+        self._max_cache_size = MAX_RESPONSE_CACHE_SIZE
 
-    def _cache_key(self, prompt: str) -> Optional[str]:
-        """Generate a cache key for a prompt."""
+    def _cache_key(self, prompt: str) -> Optional[int]:
+        """Generate a cache key for a prompt using built-in hash."""
         # Only cache if conversation history is short to avoid stale responses
-        if len(self.conversation_history) > 10:
+        if len(self.conversation_history) > CACHE_HISTORY_THRESHOLD:
             return None
-        return hashlib.md5(prompt.encode()).hexdigest()
+        return hash(prompt)
     
     def _get_cached_response(self, prompt: str) -> Optional[str]:
         """Check if we have a cached response for this prompt."""

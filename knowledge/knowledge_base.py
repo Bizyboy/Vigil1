@@ -150,14 +150,16 @@ class KnowledgeBase:
                 try:
                     self._category_index[entry.category].remove(entry_id)
                 except ValueError:
-                    pass  # Entry not in index, continue anyway
+                    # Log inconsistency but continue
+                    print(f"[{BOT_NAME}] Warning: Entry {entry_id} not found in category index for '{entry.category}'")
             
             for tag in entry.tags:
                 if tag in self._tag_index:
                     try:
                         self._tag_index[tag].remove(entry_id)
                     except ValueError:
-                        pass  # Entry not in index, continue anyway
+                        # Log inconsistency but continue
+                        print(f"[{BOT_NAME}] Warning: Entry {entry_id} not found in tag index for '{tag}'")
             
             del self.entries[entry_id]
             self._save_entries()

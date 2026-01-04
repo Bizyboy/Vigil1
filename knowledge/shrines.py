@@ -134,6 +134,10 @@ class ShrineVirtues:
         """
         Cached version that returns shrine key for hashability.
         Internal use only.
+        
+        Note: LRU cache on classmethod persists for application lifetime.
+        This is acceptable as SHRINES is static and cache size is limited to 128 entries.
+        Cache can be cleared if needed with: ShrineVirtues._get_relevant_shrine_key.cache_clear()
         """
         query_lower = query_text.lower()
         words = set(re.findall(r'\b\w+\b', query_lower))
