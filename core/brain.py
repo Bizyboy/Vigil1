@@ -4,10 +4,12 @@ Multi-model AI backend with OpenAI, Claude, and Gemini
 """
 
 import json
+import hashlib
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 
 from openai import OpenAI
 from anthropic import Anthropic
@@ -66,6 +68,34 @@ class Brain:
 
         self.system_prompt = get_system_prompt()
         self.conversation_history: List[Message] = []
+        
+        # Simple cache for recent responses (prompt hash -> response text)
+        self._response_cache: Dict[str, str] = {}
+        self._max_cache_size = 50
+
+    def _cache_key(self, prompt: str) -> str:
+        """Generate a cache key for a prompt."""
+        # Only cache if conversation history is short to avoid stale responses
+        if len(self.conversation_history) > 10:
+            return None
+        return hashlib.md5(prompt.encode()).hexdigest()
+    
+    def _get_cached_response(self, prompt: str) -> Optional[str]:
+        """Check if we have a cached response for this prompt."""
+        cache_key = self._cache_key(prompt)
+        if cache_key:
+            return self._response_cache.get(cache_key)
+        return None
+    
+    def _cache_response(self, prompt: str, response: str):
+        """Cache a response for future use."""
+        cache_key = self._cache_key(prompt)
+        if cache_key:
+            # Limit cache size
+            if len(self._response_cache) >= self._max_cache_size:
+                # Remove oldest entry (simple FIFO)
+                self._response_cache.pop(next(iter(self._response_cache)))
+            self._response_cache[cache_key] = response
 
     def add_to_history(self, role: str, content: str):
         self.conversation_history.append(Message(role=role, content=content))
@@ -99,6 +129,20 @@ class Brain:
             print(f"[{BOT_NAME}] OpenAI not available.")
             return None
 
+        # Check cache first
+        cached = self._get_cached_response(prompt)
+        if cached:
+            print(f"[{BOT_NAME}] Using cached response for similar prompt")
+            self.add_to_history("user", prompt)
+            self.add_to_history("assistant", cached)
+            return LLMResponse(
+                text=cached,
+                provider=Provider.OPENAI,
+                model=LLMConfig.PRIMARY_MODEL,
+                tokens_used=0,  # Cached response
+                metadata={"cached": True}
+            )
+
         temperature = temperature or LLMConfig.DEFAULT_TEMPERATURE
 
         try:
@@ -115,6 +159,9 @@ class Brain:
             tokens_used = response.usage.total_tokens if response.usage else 0
 
             self.add_to_history("assistant", assistant_message)
+            
+            # Cache the response
+            self._cache_response(prompt, assistant_message)
 
             return LLMResponse(
                 text=assistant_message,
