@@ -98,7 +98,8 @@ After:  max(3s, 2.5s, 2s) = 3s total
 **Issue**: Identical or very similar prompts resulted in redundant API calls.
 
 **Solution**:
-- Implemented MD5-based response cache with 50-entry limit
+- Implemented hash-based response cache with 50-entry limit
+- Uses Python's built-in `hash()` function for speed
 - Only caches when conversation history is short (< 10 messages)
 - FIFO eviction when cache is full
 
