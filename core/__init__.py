@@ -1,1 +1,0 @@
-"""Vigil Core Module"""
