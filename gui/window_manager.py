@@ -58,10 +58,11 @@ class WindowManager:
         
     def _create_windows(self):
         """Create all GUI windows."""
-        # Desktop widget
+        # Desktop widget (pass root as parent)
         self.desktop_widget = VigilDesktopWidget(
             on_click=self._on_widget_click,
             on_right_click=self._on_widget_right_click,
+            parent=self.root,
         )
         
         # Chat window
@@ -123,19 +124,58 @@ class WindowManager:
             
     def _get_vigil_response(self, message: str) -> str:
         """Get response from Vigil (if available)."""
-        if self.vigil:
-            # Call Vigil's process_command method
-            # This is a simplified version - you'll need to adapt based on your Vigil class
+        if self.vigil and hasattr(self.vigil, 'brain'):
             try:
-                # Process command through Vigil's brain
-                if hasattr(self.vigil, '_process_command'):
-                    # Capture the response
-                    # Note: The actual Vigil class uses voice output, so we need to adapt
-                    return "Processing your request through Vigil..."
+                # Import required classes for processing
+                from knowledge.codex import AscensionCodex
+                from knowledge.shrines import ShrineVirtues
+                from knowledge.roles import SacredRoles
+                
+                # Get knowledge context (similar to Vigil._process_command)
+                codex_context = AscensionCodex.get_context_for_query(message)
+                shrine_context = ShrineVirtues.get_context_for_query(message)
+                role_context = SacredRoles.get_role_context(message)
+                kb_context = self.vigil.knowledge_base.get_context_for_query(message)
+                user_context = self.vigil.memory.get_user_context()
+                
+                # Build enhanced prompt
+                enhanced_prompt = f"""{message}
+
+---
+## CONTEXT FOR VIGIL
+
+{user_context}
+
+{role_context}
+
+{codex_context}
+
+{shrine_context}
+
+{kb_context}
+---
+
+Respond naturally as Vigil. Keep responses concise for chat.
+"""
+                
+                # Get response from brain
+                response = self.vigil.brain.think(enhanced_prompt)
+                
+                if response and hasattr(response, 'text'):
+                    # Record in memory
+                    role = SacredRoles.detect_role(message)
+                    domain = SacredRoles.detect_domain(message)
+                    self.vigil.memory.record_interaction(
+                        user_input=message,
+                        vigil_response=response.text,
+                        mode=domain or "conversation",
+                    )
+                    return response.text
                 else:
-                    return "Vigil instance not fully initialized."
+                    return "I'm having trouble processing that request."
+                    
             except Exception as e:
-                return f"Error processing command: {str(e)}"
+                return f"Error processing: {str(e)}"
         return ""
         
     def _on_voice_input(self):
@@ -156,7 +196,7 @@ class WindowManager:
             
     def _on_settings_changed(self, settings: dict):
         """Handle settings changes."""
-        # Apply settings
+        # Apply widget visibility settings
         if 'show_desktop_widget' in settings:
             if settings['show_desktop_widget']:
                 self.desktop_widget.show()
@@ -165,8 +205,24 @@ class WindowManager:
                 
         # Update Vigil settings if instance is available
         if self.vigil:
-            # Apply wake words, etc.
-            pass
+            # Update wake words if changed
+            if 'wake_words' in settings:
+                from config.settings import WAKE_WORDS
+                new_wake_words = [w.strip() for w in settings['wake_words'].split(',')]
+                # Note: Actual wake word update would require restarting the listener
+                # For now, just update the settings file
+                
+            # Update user name if changed
+            if 'user_name' in settings:
+                from config.settings import PRIMARY_USER_NAME
+                # Update in-memory reference
+                # Note: This requires updating the config module dynamically
+                
+            # Update voice settings if changed
+            if 'voice_id' in settings and hasattr(self.vigil, 'voice_output'):
+                # Update voice output settings
+                # Note: This would require voice_output to support runtime reconfiguration
+                pass
             
     def activate(self, activation_string: Optional[str] = None):
         """

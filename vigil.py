@@ -262,11 +262,15 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
                 self.window_manager.activate(activation_string)
             else:
                 # Auto-activate based on settings
-                settings = self.window_manager.settings_window.get_settings()
-                if settings.get('auto_activate', True):
-                    self.window_manager.activate()
+                if self.window_manager.settings_window:
+                    settings = self.window_manager.settings_window.get_settings()
+                    if settings.get('auto_activate', True):
+                        self.window_manager.activate()
+                    else:
+                        print(f"[{BOT_NAME}] GUI ready. Use activation string to enable widgets.")
                 else:
-                    print(f"[{BOT_NAME}] GUI ready. Use activation string to enable widgets.")
+                    # Fallback: activate anyway
+                    self.window_manager.activate()
 
         # Start reflection scheduler
         self.reflection_system.start_scheduler()

@@ -31,13 +31,18 @@ class VigilDesktopWidget:
         self,
         on_click: Optional[Callable] = None,
         on_right_click: Optional[Callable] = None,
+        parent: Optional[tk.Tk] = None,
     ):
         """Initialize the desktop widget."""
         self.on_click = on_click
         self.on_right_click = on_right_click
         
-        # Create transparent window
-        self.window = tk.Tk()
+        # Create window - use Toplevel if parent provided, else Tk
+        if parent:
+            self.window = tk.Toplevel(parent)
+        else:
+            self.window = tk.Tk()
+        
         self.window.title("Vigil")
         self.window.overrideredirect(True)  # Remove window decorations
         self.window.attributes('-topmost', True)  # Always on top
