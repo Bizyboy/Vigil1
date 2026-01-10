@@ -48,7 +48,15 @@ from knowledge.shrines import ShrineVirtues
 from knowledge.roles import SacredRoles
 from knowledge.knowledge_base import KnowledgeBase
 from reflection.daily_reflection import ReflectionSystem
-from gui.window_manager import WindowManager
+
+# Try to import GUI components
+try:
+    from gui.window_manager import WindowManager
+    GUI_AVAILABLE = True
+except ImportError as e:
+    GUI_AVAILABLE = False
+    print(f"[WARNING] GUI not available: {e}")
+    print("[WARNING] Run in voice-only mode or install python3-tk package")
 
 
 class Vigil:
@@ -106,6 +114,10 @@ class Vigil:
         self.enable_gui = enable_gui
         self.window_manager = None
         if enable_gui:
+            if not GUI_AVAILABLE:
+                print(f"[{BOT_NAME}] ERROR: GUI requested but tkinter not available!")
+                print(f"[{BOT_NAME}] Install python3-tk package or run without --gui flag")
+                raise ImportError("GUI mode requires tkinter. Install python3-tk package.")
             print(f"[{BOT_NAME}] Initializing GUI components...")
             self.window_manager = WindowManager(vigil_instance=self, settings_file=Paths.CONFIG / 'gui_settings.json')
 

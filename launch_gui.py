@@ -8,13 +8,17 @@ Can be run independently to test widgets without the full Vigil system.
 """
 
 import sys
-import tkinter as tk
 from pathlib import Path
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from gui.window_manager import WindowManager
+# Check for tkinter before importing GUI
+try:
+    import tkinter as tk
+    GUI_AVAILABLE = True
+except ImportError:
+    GUI_AVAILABLE = False
 
 
 def main():
@@ -25,6 +29,21 @@ def main():
 ║                  The Watchful Guardian                        ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
+    
+    if not GUI_AVAILABLE:
+        print("[ERROR] tkinter not available!")
+        print()
+        print("GUI mode requires tkinter, which is not installed.")
+        print()
+        print("Installation instructions:")
+        print("  - Ubuntu/Debian: sudo apt-get install python3-tk")
+        print("  - Fedora: sudo dnf install python3-tkinter")
+        print("  - Windows: tkinter should be included with Python")
+        print()
+        print("After installation, run this script again.")
+        return 1
+    
+    from gui.window_manager import WindowManager
     
     print("[GUI] Launching Vigil GUI components...")
     print("[GUI] Note: Running in standalone mode (no voice system)")
@@ -63,7 +82,9 @@ def main():
     except KeyboardInterrupt:
         print("\n[GUI] Shutting down...")
         manager.stop()
+    
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
