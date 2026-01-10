@@ -26,6 +26,7 @@ import sys
 import time
 import signal
 import threading
+import argparse
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -48,6 +49,15 @@ from knowledge.roles import SacredRoles
 from knowledge.knowledge_base import KnowledgeBase
 from reflection.daily_reflection import ReflectionSystem
 
+# Try to import GUI components
+try:
+    from gui.window_manager import WindowManager
+    GUI_AVAILABLE = True
+except ImportError as e:
+    GUI_AVAILABLE = False
+    print(f"[WARNING] GUI not available: {e}")
+    print("[WARNING] Run in voice-only mode or install python3-tk package")
+
 
 class Vigil:
     """
@@ -62,7 +72,7 @@ class Vigil:
     - Daily reflections
     """
 
-    def __init__(self):
+    def __init__(self, enable_gui=False):
         print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
@@ -99,6 +109,17 @@ class Vigil:
             on_wake=self._on_wake_word_detected,
             on_error=self._on_listener_error
         )
+
+        # GUI components
+        self.enable_gui = enable_gui
+        self.window_manager = None
+        if enable_gui:
+            if not GUI_AVAILABLE:
+                print(f"[Vigil] ERROR: GUI requested but tkinter not available!")
+                print(f"[Vigil] Install python3-tk package or run without --gui flag")
+                raise ImportError("GUI mode requires tkinter. Install python3-tk package.")
+            print(f"[{BOT_NAME}] Initializing GUI components...")
+            self.window_manager = WindowManager(vigil_instance=self, settings_file=Paths.CONFIG / 'gui_settings.json')
 
         # State
         self.is_running = False
@@ -226,9 +247,30 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
         print(f"[{BOT_NAME}] {greeting}")
         self.voice_output.speak(greeting)
 
-    def run(self):
+    def run(self, activation_string: str = None):
         """Main run loop."""
         self.is_running = True
+
+        # Start GUI if enabled
+        if self.enable_gui and self.window_manager:
+            # Start GUI in separate thread
+            self.window_manager.run_in_thread()
+            
+            # Activate GUI with optional activation string
+            if activation_string:
+                print(f"[{BOT_NAME}] Activating with provided string...")
+                self.window_manager.activate(activation_string)
+            else:
+                # Auto-activate based on settings
+                if self.window_manager.settings_window:
+                    settings = self.window_manager.settings_window.get_settings()
+                    if settings.get('auto_activate', True):
+                        self.window_manager.activate()
+                    else:
+                        print(f"[{BOT_NAME}] GUI ready. Use activation string to enable widgets.")
+                else:
+                    # Fallback: activate anyway
+                    self.window_manager.activate()
 
         # Start reflection scheduler
         self.reflection_system.start_scheduler()
@@ -242,6 +284,11 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
         print(f"\n[{BOT_NAME}] ═══════════════════════════════════════════")
         print(f"[{BOT_NAME}] Vigil is now active and listening.")
         print(f"[{BOT_NAME}] Say one of the wake words to begin.")
+        if self.enable_gui:
+            print(f"[{BOT_NAME}] GUI Hotkeys:")
+            print(f"[{BOT_NAME}]   Ctrl+Alt+C - Toggle Chat Window")
+            print(f"[{BOT_NAME}]   Ctrl+Alt+S - Toggle Settings Window")
+            print(f"[{BOT_NAME}]   Ctrl+Alt+W - Toggle Desktop Widget")
         print(f"[{BOT_NAME}] Press Ctrl+C to shutdown.")
         print(f"[{BOT_NAME}] ═══════════════════════════════════════════\n")
 
@@ -263,6 +310,10 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
         self._shutdown_event.set()
         self.is_running = False
 
+        # Stop GUI components
+        if self.enable_gui and self.window_manager:
+            self.window_manager.stop()
+
         # Stop components
         self.listener.stop()
         self.reflection_system.stop_scheduler()
@@ -279,8 +330,33 @@ Respond naturally as Vigil. Keep voice responses concise (2-4 sentences) unless 
 
 def main():
     """Entry point."""
-    # Handle Ctrl+C gracefully
-    vigil = Vigil()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Vigil - The Watchful Guardian',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python vigil.py                          # Run in voice-only mode
+  python vigil.py --gui                    # Run with GUI widgets
+  python vigil.py --gui --activate "key"   # Activate GUI with string
+        """
+    )
+    parser.add_argument(
+        '--gui',
+        action='store_true',
+        help='Enable GUI mode with desktop widget, chat, and settings windows'
+    )
+    parser.add_argument(
+        '--activate',
+        type=str,
+        default=None,
+        help='Activation string to enable Vigil GUI widgets'
+    )
+    
+    args = parser.parse_args()
+    
+    # Create Vigil instance
+    vigil = Vigil(enable_gui=args.gui)
 
     def signal_handler(sig, frame):
         vigil.shutdown()
@@ -290,7 +366,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     # Run Vigil
-    vigil.run()
+    vigil.run(activation_string=args.activate)
 
 
 if __name__ == "__main__":
