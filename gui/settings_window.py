@@ -12,6 +12,21 @@ import json
 from pathlib import Path
 
 
+# Color scheme constants
+class Colors:
+    """Color constants for consistent theming."""
+    BG_DARK = '#1a1a2e'
+    BG_MEDIUM = '#16213e'
+    BG_LIGHT = '#0f3460'
+    ACCENT = '#e94560'
+    ACCENT_HOVER = '#ff6b9d'
+    TEXT_PRIMARY = '#e0e0e0'
+    TEXT_SECONDARY = '#888888'
+    SUCCESS = '#00ff00'
+    WARNING = '#ffaa00'
+    ERROR = '#ff0000'
+
+
 class VigilSettingsWindow:
     """
     Forward Operating Base (FOB) for Vigil.
@@ -204,7 +219,7 @@ class VigilSettingsWindow:
         )
         
         # Auto-activation
-        auto_activate_frame = tk.Frame(settings_container, bg='#16213e')
+        auto_activate_frame = tk.Frame(settings_container, bg=Colors.BG_MEDIUM)
         auto_activate_frame.pack(fill=tk.X, pady=10)
         
         self.auto_activate_var = tk.BooleanVar(value=self.settings.get('auto_activate', True))
@@ -213,10 +228,10 @@ class VigilSettingsWindow:
             text="Auto-activate on startup",
             variable=self.auto_activate_var,
             font=('Arial', 10),
-            bg='#16213e',
-            fg='#e0e0e0',
-            selectcolor='#0f3460',
-            activebackground='#16213e',
+            bg=Colors.BG_MEDIUM,
+            fg=Colors.TEXT_PRIMARY,
+            selectcolor=Colors.BG_LIGHT,
+            activebackground=Colors.BG_MEDIUM,
             command=self._on_auto_activate_changed,
         ).pack(anchor=tk.W)
         

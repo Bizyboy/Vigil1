@@ -115,8 +115,8 @@ class Vigil:
         self.window_manager = None
         if enable_gui:
             if not GUI_AVAILABLE:
-                print(f"[{BOT_NAME}] ERROR: GUI requested but tkinter not available!")
-                print(f"[{BOT_NAME}] Install python3-tk package or run without --gui flag")
+                print(f"[Vigil] ERROR: GUI requested but tkinter not available!")
+                print(f"[Vigil] Install python3-tk package or run without --gui flag")
                 raise ImportError("GUI mode requires tkinter. Install python3-tk package.")
             print(f"[{BOT_NAME}] Initializing GUI components...")
             self.window_manager = WindowManager(vigil_instance=self, settings_file=Paths.CONFIG / 'gui_settings.json')

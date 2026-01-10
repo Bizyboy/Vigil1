@@ -14,6 +14,37 @@ import time
 from typing import Optional, Callable
 
 
+# Widget appearance constants
+class WidgetConfig:
+    """Configuration constants for the desktop widget."""
+    WIDTH = 120
+    HEIGHT = 120
+    OPACITY_NORMAL = 0.9
+    OPACITY_HOVER = 1.0
+    
+    # Colors
+    BG_OUTER = '#1a1a2e'
+    BG_INNER = '#16213e'
+    CIRCLE_OUTER = '#0f3460'
+    CIRCLE_INNER = '#533483'
+    V_FILL = '#e94560'
+    V_OUTLINE = '#ff6b9d'
+    EYE_COLOR = '#00ffff'
+    STATUS_COLOR_1 = '#00ff00'
+    STATUS_COLOR_2 = '#00ffff'
+    
+    # Animation
+    ANIMATION_SPEED = 0.05
+    ANIMATION_FRAME_MS = 50
+    EYE_PULSE_MULTIPLIER = 2
+    IDLE_MOVEMENT_INTERVAL = 100  # frames
+    IDLE_MOVEMENT_RANGE = 30  # pixels
+    
+    # Physics
+    MOVEMENT_ACCELERATION = 0.001
+    MOVEMENT_FRICTION = 0.95
+
+
 class VigilDesktopWidget:
     """
     A desktop widget that represents Vigil as a small flying mascot.
@@ -46,15 +77,15 @@ class VigilDesktopWidget:
         self.window.title("Vigil")
         self.window.overrideredirect(True)  # Remove window decorations
         self.window.attributes('-topmost', True)  # Always on top
-        self.window.attributes('-alpha', 0.9)  # Semi-transparent
+        self.window.attributes('-alpha', WidgetConfig.OPACITY_NORMAL)  # Semi-transparent
         
         # Set window size
-        self.width = 120
-        self.height = 120
+        self.width = WidgetConfig.WIDTH
+        self.height = WidgetConfig.HEIGHT
         self.window.geometry(f'{self.width}x{self.height}')
         
         # Configure transparent background
-        self.window.configure(bg='#1a1a2e')
+        self.window.configure(bg=WidgetConfig.BG_OUTER)
         
         # Create canvas for drawing
         self.canvas = tk.Canvas(
@@ -159,8 +190,12 @@ class VigilDesktopWidget:
         )
         
         # Status indicator (pulsing)
-        pulse = (math.sin(self.animation_phase * 2) + 1) / 2
-        indicator_color = self._interpolate_color('#00ff00', '#00ffff', pulse)
+        pulse = (math.sin(self.animation_phase * WidgetConfig.EYE_PULSE_MULTIPLIER) + 1) / 2
+        indicator_color = self._interpolate_color(
+            WidgetConfig.STATUS_COLOR_1, 
+            WidgetConfig.STATUS_COLOR_2, 
+            pulse
+        )
         self.canvas.create_oval(
             center_x + 35, center_y - 35,
             center_x + 42, center_y - 28,
@@ -218,11 +253,11 @@ class VigilDesktopWidget:
             
     def _on_mouse_enter(self, event):
         """Handle mouse entering the widget."""
-        self.window.attributes('-alpha', 1.0)
+        self.window.attributes('-alpha', WidgetConfig.OPACITY_HOVER)
         
     def _on_mouse_leave(self, event):
         """Handle mouse leaving the widget."""
-        self.window.attributes('-alpha', 0.9)
+        self.window.attributes('-alpha', WidgetConfig.OPACITY_NORMAL)
         
     def _update_position(self):
         """Update window position."""

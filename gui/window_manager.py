@@ -229,16 +229,22 @@ Respond naturally as Vigil. Keep responses concise for chat.
         Activate Vigil GUI with optional activation string.
         
         Args:
-            activation_string: Optional string to activate Vigil
+            activation_string: Optional string to activate Vigil. 
+                             Currently accepts any non-empty string.
+                             Can be customized to implement specific validation logic.
         """
         if activation_string:
-            # Validate activation string (placeholder)
+            # Validate activation string
             if self._validate_activation(activation_string):
                 self.is_activated = True
             else:
                 messagebox.showerror(
                     "Activation Failed",
-                    "Invalid activation string. Please try again."
+                    "Invalid activation string.\n\n"
+                    "The activation string must be:\n"
+                    "- At least 3 characters long\n"
+                    "- Non-empty\n\n"
+                    "You can customize validation in window_manager.py"
                 )
                 return
         else:
@@ -257,10 +263,23 @@ Respond naturally as Vigil. Keep responses concise for chat.
         self.settings_window.update_status("✅ Vigil GUI activated\n")
         
     def _validate_activation(self, activation_string: str) -> bool:
-        """Validate the activation string."""
-        # For now, accept any non-empty string
-        # You can implement your own validation logic here
-        return len(activation_string.strip()) > 0
+        """
+        Validate the activation string.
+        
+        Default implementation accepts any non-empty string with at least 3 characters.
+        You can customize this method to implement your own validation logic, such as:
+        - Checking against a predefined key
+        - Validating a specific format/pattern
+        - Verifying through an external service
+        
+        Args:
+            activation_string: The activation string to validate
+            
+        Returns:
+            bool: True if valid, False otherwise
+        """
+        # Default: Accept any string with 3+ characters
+        return len(activation_string.strip()) >= 3
         
     def show_chat(self):
         """Show the chat window."""
