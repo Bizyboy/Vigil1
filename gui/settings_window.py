@@ -6,7 +6,7 @@ Central control panel for Vigil's tasks, settings, and customizations.
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox
 from typing import Optional, Callable, Dict, Any
 import json
 from pathlib import Path
