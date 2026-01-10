@@ -98,9 +98,6 @@ class VigilDesktopWidget:
         )
         self.canvas.pack(fill=tk.BOTH, expand=True)
         
-        # Draw Vigil mascot
-        self._draw_mascot()
-        
         # Movement state
         self.is_dragging = False
         self.drag_start_x = 0
@@ -115,6 +112,14 @@ class VigilDesktopWidget:
         # Animation state
         self.animation_phase = 0
         self.idle_animation_counter = 0
+        
+        # Canvas item references for efficient updates
+        self.eye_item = None
+        self.status_indicator_item = None
+        
+        # Draw Vigil mascot once
+        self._draw_mascot_static()
+        self._create_animated_elements()
         
         # Bind events
         self.canvas.bind('<Button-1>', self._on_mouse_down)
@@ -137,12 +142,8 @@ class VigilDesktopWidget:
         self.is_running = True
         self._animate()
         
-    def _draw_mascot(self):
-        """Draw the Vigil mascot on the canvas."""
-        # Clear canvas
-        self.canvas.delete('all')
-        
-        # Draw a stylized "V" for Vigil with an eye
+    def _draw_mascot_static(self):
+        """Draw the static parts of the Vigil mascot on the canvas (called once)."""
         center_x = self.width / 2
         center_y = self.height / 2
         
@@ -179,29 +180,49 @@ class VigilDesktopWidget:
             outline='#ff6b9d',
             width=1,
         )
+    
+    def _create_animated_elements(self):
+        """Create animated elements that will be updated each frame."""
+        center_x = self.width / 2
+        center_y = self.height / 2
         
-        # Draw eye (animated)
-        eye_offset = math.sin(self.animation_phase) * 2
-        self.canvas.create_oval(
-            center_x - 3, center_y - 20 + eye_offset,
-            center_x + 3, center_y - 14 + eye_offset,
+        # Create eye (will be moved each frame)
+        self.eye_item = self.canvas.create_oval(
+            center_x - 3, center_y - 20,
+            center_x + 3, center_y - 14,
             fill='#00ffff',
             outline='',
         )
         
-        # Status indicator (pulsing)
+        # Create status indicator (will change color each frame)
+        self.status_indicator_item = self.canvas.create_oval(
+            center_x + 35, center_y - 35,
+            center_x + 42, center_y - 28,
+            fill=WidgetConfig.STATUS_COLOR_1,
+            outline='',
+        )
+    
+    def _update_animated_elements(self):
+        """Update only the animated elements for better performance."""
+        center_x = self.width / 2
+        center_y = self.height / 2
+        
+        # Update eye position (gentle bobbing)
+        eye_offset = math.sin(self.animation_phase) * 2
+        self.canvas.coords(
+            self.eye_item,
+            center_x - 3, center_y - 20 + eye_offset,
+            center_x + 3, center_y - 14 + eye_offset,
+        )
+        
+        # Update status indicator color (pulsing)
         pulse = (math.sin(self.animation_phase * WidgetConfig.EYE_PULSE_MULTIPLIER) + 1) / 2
         indicator_color = self._interpolate_color(
             WidgetConfig.STATUS_COLOR_1, 
             WidgetConfig.STATUS_COLOR_2, 
             pulse
         )
-        self.canvas.create_oval(
-            center_x + 35, center_y - 35,
-            center_x + 42, center_y - 28,
-            fill=indicator_color,
-            outline='',
-        )
+        self.canvas.itemconfig(self.status_indicator_item, fill=indicator_color)
         
     def _interpolate_color(self, color1: str, color2: str, t: float) -> str:
         """Interpolate between two hex colors."""
@@ -271,22 +292,22 @@ class VigilDesktopWidget:
         self.window.geometry(f'{self.width}x{self.height}+{int(self.current_x)}+{int(self.current_y)}')
         
     def _animate(self):
-        """Animation loop."""
+        """Animation loop - optimized to only update what changes."""
         if not self.is_running:
             return
             
         # Update animation phase
-        self.animation_phase += 0.05
+        self.animation_phase += WidgetConfig.ANIMATION_SPEED
         
         # Gentle floating movement when not being dragged
         if not self.is_dragging:
             self.idle_animation_counter += 1
             
             # Every few seconds, pick a new gentle target nearby
-            if self.idle_animation_counter > 100:
+            if self.idle_animation_counter > WidgetConfig.IDLE_MOVEMENT_INTERVAL:
                 self.idle_animation_counter = 0
-                offset_x = random.uniform(-30, 30)
-                offset_y = random.uniform(-30, 30)
+                offset_x = random.uniform(-WidgetConfig.IDLE_MOVEMENT_RANGE, WidgetConfig.IDLE_MOVEMENT_RANGE)
+                offset_y = random.uniform(-WidgetConfig.IDLE_MOVEMENT_RANGE, WidgetConfig.IDLE_MOVEMENT_RANGE)
                 self.target_x = self.current_x + offset_x
                 self.target_y = self.current_y + offset_y
                 
@@ -294,12 +315,12 @@ class VigilDesktopWidget:
             dx = self.target_x - self.current_x
             dy = self.target_y - self.current_y
             
-            self.velocity_x += dx * 0.001
-            self.velocity_y += dy * 0.001
+            self.velocity_x += dx * WidgetConfig.MOVEMENT_ACCELERATION
+            self.velocity_y += dy * WidgetConfig.MOVEMENT_ACCELERATION
             
             # Apply friction
-            self.velocity_x *= 0.95
-            self.velocity_y *= 0.95
+            self.velocity_x *= WidgetConfig.MOVEMENT_FRICTION
+            self.velocity_y *= WidgetConfig.MOVEMENT_FRICTION
             
             # Update position
             self.current_x += self.velocity_x
@@ -307,11 +328,11 @@ class VigilDesktopWidget:
             
             self._update_position()
         
-        # Redraw mascot with animation
-        self._draw_mascot()
+        # Update only the animated elements (much more efficient than redrawing everything)
+        self._update_animated_elements()
         
         # Schedule next frame
-        self.window.after(50, self._animate)
+        self.window.after(WidgetConfig.ANIMATION_FRAME_MS, self._animate)
         
     def show(self):
         """Show the widget."""

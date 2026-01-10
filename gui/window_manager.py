@@ -126,12 +126,13 @@ class WindowManager:
         """Get response from Vigil (if available)."""
         if self.vigil and hasattr(self.vigil, 'brain'):
             try:
-                # Import required classes for processing
+                # Import required classes for processing (cached after first import)
                 from knowledge.codex import AscensionCodex
                 from knowledge.shrines import ShrineVirtues
                 from knowledge.roles import SacredRoles
                 
                 # Get knowledge context (similar to Vigil._process_command)
+                # These methods use LRU cache internally for performance
                 codex_context = AscensionCodex.get_context_for_query(message)
                 shrine_context = ShrineVirtues.get_context_for_query(message)
                 role_context = SacredRoles.get_role_context(message)
@@ -158,11 +159,11 @@ class WindowManager:
 Respond naturally as Vigil. Keep responses concise for chat.
 """
                 
-                # Get response from brain
+                # Get response from brain (with internal caching for similar prompts)
                 response = self.vigil.brain.think(enhanced_prompt)
                 
                 if response and hasattr(response, 'text'):
-                    # Record in memory
+                    # Record in memory (with debounced saving)
                     role = SacredRoles.detect_role(message)
                     domain = SacredRoles.detect_domain(message)
                     self.vigil.memory.record_interaction(
